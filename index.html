@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>المتقدمين إلى شركة Brand Flew</title>
+    <style>
+        :root {
+            --bg-color: #121212;
+            --text-color: #ffffff;
+            --secondary-color: #1e1e1e;
+            --accent-color: #3498db;
+            --danger-color: #e74c3c;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: auto;
+            background-color: var(--secondary-color);
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.3);
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .counter {
+            text-align: center;
+            font-size: 18px;
+            margin-bottom: 20px;
+            color: #aaa;
+        }
+
+        .search-container,
+        .filter-section {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 15px;
+        }
+
+        .search-input, .filter-select {
+            flex: 1;
+            min-width: 200px;
+            padding: 10px;
+            border: none;
+            border-radius: 4px;
+            font-size: 16px;
+            background-color: #2c2c2c;
+            color: #fff;
+        }
+
+        .search-btn {
+            padding: 10px 20px;
+            background-color: var(--accent-color);
+            border: none;
+            border-radius: 4px;
+            color: white;
+            cursor: pointer;
+        }
+
+        .search-btn:hover {
+            background-color: #2980b9;
+        }
+
+        .applicants-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .applicants-table th, .applicants-table td {
+            border: 1px solid #444;
+            padding: 10px;
+            text-align: right;
+        }
+
+        .applicants-table th {
+            background-color: #1c1c1c;
+        }
+
+        .applicants-table tr:nth-child(even) {
+            background-color: #1a1a1a;
+        }
+
+        .btn {
+            padding: 6px 10px;
+            border: none;
+            border-radius: 4px;
+            font-size: 14px;
+            cursor: pointer;
+        }
+
+        .btn-view {
+            background-color: var(--accent-color);
+            color: white;
+        }
+
+        .btn-delete {
+            background-color: var(--danger-color);
+            color: white;
+        }
+
+        .btn-export {
+            background-color: #2ecc71;
+            color: white;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: rgba(0,0,0,0.7);
+            z-index: 1000;
+        }
+
+        .modal-content {
+            background-color: #222;
+            margin: 10% auto;
+            padding: 20px;
+            border-radius: 8px;
+            width: 80%;
+            max-width: 600px;
+            color: white;
+        }
+
+        .close {
+            float: left;
+            font-size: 28px;
+            cursor: pointer;
+            color: #ccc;
+        }
+
+        .close:hover {
+            color: white;
+        }
+
+        .no-results, .loading {
+            text-align: center;
+            margin-top: 20px;
+            color: #bbb;
+        }
+
+        .error {
+            background-color: #a94442;
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>المتقدمين إلى شركة Brand Flew</h1>
+    <div class="counter" id="applicantCount">عدد المتقدمين: 0</div>
+
+    <div class="search-container">
+        <input type="text" id="searchInput" class="search-input" placeholder="ابحث بالاسم أو التخصص...">
+        <button id="searchBtn" class="search-btn">بحث</button>
+        <button id="resetSearchBtn" class="search-btn" style="background-color: #777;">عرض الكل</button>
+        <button id="exportBtn" class="search-btn btn-export">تصدير</button>
+    </div>
+
+    <div class="filter-section">
+        <select id="specializationFilter" class="filter-select">
+            <option value="">جميع التخصصات</option>
+        </select>
+    </div>
+
+    <div id="error-message" class="error" style="display:none;"></div>
+    <div id="loading-data" class="loading">جاري تحميل البيانات...</div>
+    <div id="data-container"></div>
+</div>
+
+<div id="applicantModal" class="modal">
+    <div class="modal-content">
+        <span class="close">&times;</span>
+        <h2>تفاصيل المتقدم</h2>
+        <div id="applicantDetails"></div>
+    </div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+    const firebaseConfig = {
+        apiKey: "AIzaSyBm-N7xE6djhJDb4RlPDRBTiV2_eRIWrqc",
+        authDomain: "database-project-ff53b.firebaseapp.com",
+        projectId: "database-project-ff53b",
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    const dataContainer = document.getElementById('data-container');
+    const applicantCount = document.getElementById('applicantCount');
+    const loadingData = document.getElementById('loading-data');
+    const errorMessage = document.getElementById('error-message');
+    const searchInput = document.getElementById('searchInput');
+    const searchBtn = document.getElementById('searchBtn');
+    const resetSearchBtn = document.getElementById('resetSearchBtn');
+    const exportBtn = document.getElementById('exportBtn');
+    const specializationFilter = document.getElementById('specializationFilter');
+
+    let applicants = [];
+
+    function fetchApplicants() {
+        loadingData.style.display = 'block';
+        db.collection("applicants").orderBy("timestamp", "desc").get()
+            .then(snapshot => {
+                applicants = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                const specs = new Set();
+                applicants.forEach(a => a.specialization && specs.add(a.specialization));
+                specializationFilter.innerHTML = '<option value="">جميع التخصصات</option>' + [...specs].map(s => `<option value="${s}">${s}</option>`).join('');
+                renderApplicants(applicants);
+            })
+            .catch(err => {
+                errorMessage.style.display = 'block';
+                errorMessage.textContent = 'حدث خطأ أثناء تحميل البيانات: ' + err.message;
+            })
+            .finally(() => loadingData.style.display = 'none');
+    }
+
+    function renderApplicants(list) {
+        applicantCount.textContent = `عدد المتقدمين: ${list.length}`;
+        if (list.length === 0) {
+            dataContainer.innerHTML = '<div class="no-results">لا توجد نتائج</div>';
+            return;
+        }
+        let html = `
+            <table class="applicants-table" id="applicantsTable">
+                <thead><tr><th>الاسم</th><th>الهاتف</th><th>التخصص</th><th>التقديم</th><th>إجراءات</th></tr></thead>
+                <tbody>
+        `;
+        list.forEach(applicant => {
+            const date = applicant.timestamp ? new Date(applicant.timestamp.seconds * 1000).toLocaleString('ar-EG') : 'غير معروف';
+            html += `
+                <tr>
+                    <td>${applicant.name || 'غير متوفر'}</td>
+                    <td>${applicant.phone || 'غير متوفر'}</td>
+                    <td>${applicant.specialization || 'غير متوفر'}</td>
+                    <td>${date}</td>
+                    <td>
+                        <button class="btn btn-view" onclick="viewApplicant('${applicant.id}')">عرض</button>
+                        <button class="btn btn-delete" onclick="deleteApplicant('${applicant.id}')">حذف</button>
+                    </td>
+                </tr>
+            `;
+        });
+        html += '</tbody></table>';
+        dataContainer.innerHTML = html;
+    }
+
+    function exportToExcel() {
+        const wb = XLSX.utils.book_new();
+        const ws_data = [
+            ["الاسم", "الهاتف", "التخصص", "تاريخ التقديم"]
+        ];
+        applicants.forEach(applicant => {
+            ws_data.push([
+                applicant.name || 'غير متوفر',
+                applicant.phone || 'غير متوفر',
+                applicant.specialization || 'غير متوفر',
+                applicant.timestamp ? new Date(applicant.timestamp.seconds * 1000).toLocaleString('ar-EG') : 'غير معروف'
+            ]);
+        });
+        const ws = XLSX.utils.aoa_to_sheet(ws_data);
+        XLSX.utils.book_append_sheet(wb, ws, "المتقدمين");
+        XLSX.writeFile(wb, "brand-flew-applicants.xlsx");
+    }
+
+    exportBtn.onclick = exportToExcel;
+
+    function viewApplicant(id) {
+        db.collection("applicants").doc(id).get().then(doc => {
+            if (!doc.exists) return alert('لا توجد بيانات');
+            const a = doc.data();
+            const date = a.timestamp ? new Date(a.timestamp.seconds * 1000).toLocaleString('ar-EG') : 'غير معروف';
+            document.getElementById('applicantDetails').innerHTML = `
+                <p><strong>الاسم:</strong> ${a.name || 'غير متوفر'}</p>
+                <p><strong>الهاتف:</strong> ${a.phone || 'غير متوفر'}</p>
+                <p><strong>التخصص:</strong> ${a.specialization || 'غير متوفر'}</p>
+                <p><strong>معرض الأعمال:</strong> ${a.portfolio ? `<a href="${a.portfolio}" target="_blank">${a.portfolio}</a>` : 'غير متوفر'}</p>
+                <p><strong>نبذة:</strong> ${a.bio || 'غير متوفر'}</p>
+                <p><strong>تاريخ التقديم:</strong> ${date}</p>
+            `;
+            document.getElementById('applicantModal').style.display = 'block';
+        });
+    }
+
+    function deleteApplicant(id) {
+        if (!confirm('هل أنت متأكد من حذف المتقدم؟')) return;
+        db.collection("applicants").doc(id).delete().then(() => fetchApplicants());
+    }
+
+    searchBtn.onclick = filter;
+    resetSearchBtn.onclick = () => {
+        searchInput.value = '';
+        specializationFilter.value = '';
+        renderApplicants(applicants);
+    };
+    specializationFilter.onchange = filter;
+    searchInput.onkeypress = e => e.key === 'Enter' && filter();
+
+    function filter() {
+        const term = searchInput.value.toLowerCase();
+        const spec = specializationFilter.value;
+        let filtered = applicants.filter(a => {
+            const matchTerm = a.name?.toLowerCase().includes(term) || a.specialization?.toLowerCase().includes(term) || a.phone?.includes(term);
+            const matchSpec = !spec || a.specialization === spec;
+            return matchTerm && matchSpec;
+        });
+        renderApplicants(filtered);
+    }
+
+    document.querySelector('.close').onclick = () => document.getElementById('applicantModal').style.display = 'none';
+    window.onclick = e => { if (e.target === document.getElementById('applicantModal')) document.getElementById('applicantModal').style.display = 'none'; }
+
+    fetchApplicants();
+</script>
+</body>
+</html>
